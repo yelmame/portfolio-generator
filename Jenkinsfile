@@ -17,7 +17,7 @@ pipeline {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-creds',
+                        credentialsId: 'jenkins-cred',
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )
@@ -39,7 +39,7 @@ pipeline {
 
         stage('Deploy Production') {
             steps {
-                sshagent(credentials: ['ec2-ssh-key']) {
+                sshagent(credentials: ['ssh-with-private-key']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ec2-user@$PROD_IP "
                             docker pull $IMAGE_NAME:latest
