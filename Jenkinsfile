@@ -1,55 +1,50 @@
-pipeline {
+   pipeline {
     agent any
+
     environment {
-        IMAGE_NAME = "rachanayelmame8/portfolio-generator"
-        IMAGE_TAG  = "${BUILD_NUMBER}"
-        PROD_IP    = "3.108.54.110"
+        IMAGE_NAME = "your-dockerhub-username/my-python-app"
+        SERVER_IP  = "<EC2-2-PRIVATE-IP>"
     }
+
     stages {
 
-        stage('Build Image') {
+        stage('Checkout') {
             steps {
-                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+                checkout scm
             }
         }
 
-        stage('DockerHub Login') {
+        stage('Build') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'jenkins-cred',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
-                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                sh 'docker build -t $IMAGE_NAME:latest .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME:latest
+                    '''
                 }
             }
         }
 
-        stage('Push Image') {
+        stage('Deploy') {
             steps {
-                sh '''
-                    docker push $IMAGE_NAME:$IMAGE_TAG
-                    docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
-                    docker push $IMAGE_NAME:latest
-                '''
-            }
-        }
-
-        stage('Deploy Production') {
-            steps {
-                sshagent(credentials: ['ssh-with-private-key']) {
+                sshagent(['ec2-deploy-key']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ec2-user@$PROD_IP "
-                            docker pull $IMAGE_NAME:latest
-                            docker rm -f portfolio-app || true
-                            docker run -d \
-                                --name portfolio-app \
-                                --restart always \
-                                -p 5000:5000 \
-                                $IMAGE_NAME:latest
-                        "
+                    ssh -o StrictHostKeyChecking=no ec2-user@$SERVER_IP "
+                    docker pull $IMAGE_NAME:latest
+                    docker stop my-python-app || true
+                    docker rm my-python-app || true
+                    docker run -d --name my-python-app -p 8000:8000 $IMAGE_NAME:latest
+                    "
                     '''
                 }
             }
@@ -57,7 +52,13 @@ pipeline {
     }
 
     post {
-        success { echo "✅ Deployed - Build ${BUILD_NUMBER}" }
-        failure { echo "❌ Failed - Check logs" }
+        success {
+            echo 'Deployment Successful!'
+        }
+
+        failure {
+            echo 'Deployment Failed!'
+        }
     }
-}
+}        
+   
