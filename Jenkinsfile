@@ -4,7 +4,7 @@
     environment {
         IMAGE_NAME = "rachanayelmame8/portfolio-generator"
         IMAGE_TAG  = "${BUILD_NUMBER}"
-        PROD_IP    = "13.201.101.36"
+        PROD_IP    = "3.110.124.66"
     }
 
     stages {
